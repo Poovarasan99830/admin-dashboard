@@ -1,0 +1,35 @@
+# Virtual environment
+envi/
+venv/
+
+# Python cache/compiled files
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# SQLite database (if used locally)
+db.sqlite3
+
+# Logs
+*.log
+
+# Environment variables
+.env
+
+# Migrations cache (optional – keep if you want to track migrations)
+*/migrations/__pycache__/
+
+# IDE / Editor files
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Docker artifacts (optional)
+*.pid
+*.sock
+*.seed
+*.pid.lock
