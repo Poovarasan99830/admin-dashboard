@@ -1,47 +1,54 @@
 from sqlalchemy.orm import Session
-from app import models
+from fastapi import HTTPException, status
+from src.models.disputes import User
+from src.models.admin_flags import AdminAction
+from src.squads.e3_1_user_mgmt.schema import ActionRequest
 
-# List users with filters
-def get_users(db: Session, status=None, email=None, name=None):
-    query = db.query(models.User)
-    if status:
-        query = query.filter(models.User.status == status)
-    if email:
-        query = query.filter(models.User.email.ilike(f"%{email}%"))
+def list_users(db: Session, status_filter: str = None, name: str = None, email: str = None, page: int = 1, limit: int = 10):
+    query = db.query(User)
+
+    if status_filter:
+        query = query.filter(User.status == status_filter)
     if name:
-        query = query.filter(models.User.name.ilike(f"%{name}%"))
-    return query.all()
+        query = query.filter(User.name.ilike(f"%{name}%"))
+    if email:
+        query = query.filter(User.email.ilike(f"%{email}%"))
 
-# Suspend user
-def suspend_user(db: Session, user_id: int, admin_id: int, reason: str = None):
-    user = db.query(models.User).filter(models.User.id == user_id, models.User.status == "active").first()
+    total = query.count()
+    users = query.offset((page - 1) * limit).limit(limit).all()
+
+    return users, total
+
+def suspend_user(db: Session, user_id: int, admin_id: int, data: ActionRequest):
+    user = db.query(User).filter(User.id == user_id).first()
     if not user:
-        return None
-    user.status = "suspended"
+        raise HTTPException(status_code=404, detail="User not found")
+    if user.status == "suspended":
+        raise HTTPException(status_code=409, detail="User already suspended")
 
-    action = models.AdminAction(
-        admin_id=admin_id,
-        action="suspend",
-        target_user_id=user_id
-    )
-    db.add(action)
+    user.status = "suspended"
+    db.add(user)
+
+    log = AdminAction(admin_id=admin_id, action="suspend", target_user_id=user.id, reason=data.reason)
+    db.add(log)
     db.commit()
     db.refresh(user)
+
     return user
 
-# Restore user
-def restore_user(db: Session, user_id: int, admin_id: int, reason: str = None):
-    user = db.query(models.User).filter(models.User.id == user_id, models.User.status == "suspended").first()
+def restore_user(db: Session, user_id: int, admin_id: int, data: ActionRequest):
+    user = db.query(User).filter(User.id == user_id).first()
     if not user:
-        return None
-    user.status = "active"
+        raise HTTPException(status_code=404, detail="User not found")
+    if user.status == "active":
+        raise HTTPException(status_code=409, detail="User already active")
 
-    action = models.AdminAction(
-        admin_id=admin_id,
-        action="restore",
-        target_user_id=user_id
-    )
-    db.add(action)
+    user.status = "active"
+    db.add(user)
+
+    log = AdminAction(admin_id=admin_id, action="restore", target_user_id=user.id, reason=data.reason)
+    db.add(log)
     db.commit()
     db.refresh(user)
+
     return user

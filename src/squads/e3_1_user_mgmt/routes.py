@@ -1,27 +1,21 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
-from app import schema, service
-from app.database import get_db
+from src.common.database import get_db
+from src.squads.e3_1_user_mgmt import service, schema
 
-router = APIRouter(prefix="/api/v1/admin/users", tags=["User Management"])
+router = APIRouter(prefix="/admin/users", tags=["Admin User Management"])
 
-# 1. List Users
-@router.get("/", response_model=list[schema.UserResponse])
-def list_users(status: str = None, email: str = None, name: str = None, db: Session = Depends(get_db)):
-    return service.get_users(db, status, email, name)
+@router.get("/", response_model=schema.UserListResponse)
+def get_users(status: str = None, name: str = None, email: str = None, page: int = 1, limit: int = 10, db: Session = Depends(get_db)):
+    users, total = service.list_users(db, status, name, email, page, limit)
+    return {"users": users, "total": total, "page": page, "limit": limit}
 
-# 2. Suspend User
-@router.post("/{user_id}/suspend", response_model=schema.UserResponse)
-def suspend_user(user_id: int, request: schema.SuspendRestoreRequest, db: Session = Depends(get_db)):
-    user = service.suspend_user(db, user_id, admin_id=1, reason=request.reason)  # mock admin_id=1
-    if not user:
-        raise HTTPException(status_code=409, detail="User not found or already suspended")
-    return user
+@router.post("/{user_id}/suspend", response_model=schema.ActionResponse)
+def suspend(user_id: int, data: schema.ActionRequest, db: Session = Depends(get_db), admin_id: int = 1):
+    user = service.suspend_user(db, user_id, admin_id, data)
+    return {"message": "User suspended successfully", "user": user}
 
-# 3. Restore User
-@router.post("/{user_id}/restore", response_model=schema.UserResponse)
-def restore_user(user_id: int, request: schema.SuspendRestoreRequest, db: Session = Depends(get_db)):
-    user = service.restore_user(db, user_id, admin_id=1, reason=request.reason)  # mock admin_id=1
-    if not user:
-        raise HTTPException(status_code=409, detail="User not found or already active")
-    return user
+@router.post("/{user_id}/restore", response_model=schema.ActionResponse)
+def restore(user_id: int, data: schema.ActionRequest, db: Session = Depends(get_db), admin_id: int = 1):
+    user = service.restore_user(db, user_id, admin_id, data)
+    return {"message": "User restored successfully", "user": user}
